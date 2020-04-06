@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title>Jitsi client</title>
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,500,700&display=swap" rel="stylesheet" />
+  <script src="libs/jquery-2.1.1.min.js"></script>
+  <script src="libs/strophe/strophe.js"></script>
+  <script src="libs/strophe/strophe.disco.min.js?v=1"></script>
+  <script src="libs/lib-jitsi-meet.min.js"></script>
+  <script src="index223.js"></script>
+</head>
+
+<body onload="mainTest();">
+  <div>
+    Test
+  </div>
+    <a href="#" onclick="unload()">Unload</a>
+    <a href="#" onclick="switchVideo()">switchVideo</a>
+    <div id="audioOutputSelectWrapper" style="display: none;">
+        Change audio output device
+        <select id="audioOutputSelect" onchange="changeAudioOutput(this)"></select>
+    </div>
+    <!-- <video id="localVideo" autoplay="true"></video> -->
+    <!--<audio id="localAudio" autoplay="true" muted="true"></audio>-->
+</body>
+
+</html>

@@ -1,22 +1,8 @@
-function component() {
-  const element = document.createElement('div');
+let role = 'user';
 
-  // Lodash, currently included via a script, is required for this line to work
-  element.innerHTML = 'Hello world';
-
-  return element;
-}
 
 const wait = (seconds) =>
   new Promise(res => setTimeout(res, seconds * 1000));
-
-const mainTest = () => {
-  document.body.appendChild(component());
-
-  $(document).ready(function () {
-    main();
-  });
-};
 
 const options = {
   hosts: {
@@ -36,12 +22,37 @@ const confOptions = {
   openBridgeChannel: true
 };
 
+// JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR);
+const initOptions = {
+  disableAudioLevels: true,
+
+  // The ID of the jidesha extension for Chrome.
+  // desktopSharingChromeExtId: 'mbocklcggfhnbahlnepmldehdhpjfcjp',
+  desktopSharingChromeExtId: null,
+
+  // Whether desktop sharing should be disabled on Chrome.
+  desktopSharingChromeDisabled: false,
+
+  // The media sources to use when using screen sharing with the Chrome
+  // extension.
+  desktopSharingChromeSources: ['screen', 'window', 'tab'],
+
+  // Required version of Chrome extension
+  desktopSharingChromeMinExtVersion: '0.1',
+
+  // Whether desktop sharing should be disabled on Firefox.
+  // desktopSharingFirefoxDisabled: true
+};
+
+JitsiMeetJS.init(initOptions);
+JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR);
+
 let connection = null;
 let isJoined = false;
 let room = null;
 
 let localTracks = [];
-const remoteTracks = {};
+let remoteTracks = {};
 
 /**
  * Handles local tracks.
@@ -65,7 +76,14 @@ function onLocalTracks(tracks) {
         console.log(
           `track audio output device was changed to ${deviceId}`));
     if (localTracks[i].getType() === 'video') {
-      $('body').append(`<video autoplay='1' id='localVideo${i}' />`);
+      $('body').append(`
+        <div>
+          <div>
+            local video ${role}
+          </div>
+          <video style="width: 100px;" autoplay='1' id='localVideo${i}' />
+        </div>
+      `);
       localTracks[i].attach($(`#localVideo${i}`)[0]);
     } else {
       $('body').append(
@@ -87,6 +105,10 @@ function onRemoteTrack(track) {
     return;
   }
   const participant = track.getParticipantId();
+  const displayName = room.getParticipantById(participant).getDisplayName();
+  if (displayName !== 'presenter') {
+    return;
+  }
 
   if (!remoteTracks[participant]) {
     remoteTracks[participant] = [];
@@ -106,16 +128,32 @@ function onRemoteTrack(track) {
     deviceId =>
       console.log(
         `track audio output device was changed to ${deviceId}`));
-  const id = participant + track.getType() + idx;
+
+  const divId = participant + track.getType() + idx;
+
+
 
   if (track.getType() === 'video') {
-    $('body').append(
-      `<video autoplay='1' id='${participant}video${idx}' />`);
+    const width = displayName === 'presenter' ? 300 : 100;
+    const videoDiv = `
+      <div class='${participant}'>
+        <div>
+          Remote video from ${displayName}
+        </div>
+        <video style="width: ${width}px;" autoplay='1' id='${divId}' />
+      </div>
+    `;
+    if (displayName === 'presenter') {
+      $('body').append(videoDiv);
+    } else {
+      $('body').append(videoDiv);
+    }
   } else {
     $('body').append(
-      `<audio autoplay='1' id='${participant}audio${idx}' />`);
+      `<audio autoplay='1' id='${divId}' />`);
   }
-  track.attach($(`#${id}`)[0]);
+
+  track.attach($(`#${divId}`)[0]);
 }
 
 /**
@@ -150,15 +188,18 @@ function onUserLeft(id) {
  */
 function onConnectionSuccess() {
   room = connection.initJitsiConference('conference', confOptions);
+  room.setDisplayName(role);
   room.on(JitsiMeetJS.events.conference.TRACK_ADDED, onRemoteTrack);
   room.on(JitsiMeetJS.events.conference.TRACK_REMOVED, track => {
+    const participant = track.getParticipantId();
+    $(`.${participant}`).remove();
     console.log(`track removed!!!${track}`);
   });
   room.on(
     JitsiMeetJS.events.conference.CONFERENCE_JOINED,
     onConferenceJoined);
-  room.on(JitsiMeetJS.events.conference.USER_JOINED, id => {
-    console.log('user join');
+  room.on(JitsiMeetJS.events.conference.USER_JOINED, (id, user) => {
+    console.log('user join', id, user.getDisplayName());
     remoteTracks[id] = [];
   });
   room.on(JitsiMeetJS.events.conference.USER_LEFT, onUserLeft);
@@ -196,6 +237,9 @@ function onDeviceListChanged(devices) {
  */
 function disconnect() {
   console.log('disconnect!');
+  if (!connection) {
+    return;
+  }
   connection.removeEventListener(
     JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
     onConnectionSuccess);
@@ -214,8 +258,18 @@ function unload() {
   for (let i = 0; i < localTracks.length; i++) {
     localTracks[i].dispose();
   }
-  room.leave();
-  connection.disconnect();
+  localTracks = [];
+  if (room) {
+    room.leave();
+    room = null;
+  }
+
+  if (connection) {
+    connection.disconnect();
+    connection = null;
+  }
+  remoteTracks = {};
+  isJoined = false;
 }
 
 let isVideo = true;
@@ -243,7 +297,9 @@ function switchVideo() { // eslint-disable-line no-unused-vars
       localTracks[1].attach($('#localVideo1')[0]);
       room.addTrack(localTracks[1]);
     })
-    .catch(error => console.log(error));
+    .catch(error => {
+      console.log(error);
+    });
 }
 
 /**
@@ -254,33 +310,26 @@ function changeAudioOutput(selected) { // eslint-disable-line no-unused-vars
   JitsiMeetJS.mediaDevices.setAudioOutputDevice(selected.value);
 }
 
+const startAsPresenter = async () => {
+  console.log('Start as presenter');
+  role = 'presenter';
+  unload();
+  await wait(1);
+  main();
+}
+
+const startAsUser = async () => {
+  console.log('Start as user');
+  role = 'user';
+  unload();
+  await wait(1);
+  main();
+}
+
+
 const main = async () => {
   $(window).bind('beforeunload', unload);
   $(window).bind('unload', unload);
-
-  // JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR);
-  const initOptions = {
-    disableAudioLevels: true,
-
-    // The ID of the jidesha extension for Chrome.
-    desktopSharingChromeExtId: 'mbocklcggfhnbahlnepmldehdhpjfcjp',
-
-    // Whether desktop sharing should be disabled on Chrome.
-    desktopSharingChromeDisabled: false,
-
-    // The media sources to use when using screen sharing with the Chrome
-    // extension.
-    desktopSharingChromeSources: ['screen', 'window'],
-
-    // Required version of Chrome extension
-    desktopSharingChromeMinExtVersion: '0.1',
-
-    // Whether desktop sharing should be disabled on Firefox.
-    desktopSharingFirefoxDisabled: true
-  };
-
-  JitsiMeetJS.init(initOptions);
-  JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR);
 
   connection = new JitsiMeetJS.JitsiConnection(null, null, options);
 
@@ -300,11 +349,12 @@ const main = async () => {
 
   connection.connect();
 
-  JitsiMeetJS.createLocalTracks({ devices: ['audio', 'video'] })
-    .then(onLocalTracks)
-    .catch(error => {
-      throw error;
-    });
+  if (role !== 'presenter') {
+    return;
+  }
+
+  const tracks = await JitsiMeetJS.createLocalTracks({ devices: ['audio', 'video'] });
+  onLocalTracks(tracks);
 
   if (JitsiMeetJS.mediaDevices.isDeviceChangeAvailable('output')) {
     JitsiMeetJS.mediaDevices.enumerateDevices(devices => {

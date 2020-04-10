@@ -1,10 +1,13 @@
 let role = 'user';
 
+const conferenceId = 'conference_654263452364526';
+const conferencePassword = 'test';
+
 
 const wait = (seconds) =>
   new Promise(res => setTimeout(res, seconds * 1000));
 
-const options = {
+const optionsLocal = {
   hosts: {
     // XMPP domain.
     domain: 'meet.jitsi',
@@ -13,6 +16,17 @@ const options = {
 
   // BOSH URL. FIXME: use XEP-0156 to discover it.
   bosh: 'http-bind',
+
+  // The name of client node advertised in XEP-0115 'c' stanza
+  clientNode: 'http://jitsi.org/jitsimeet'
+};
+
+const optionsJitsi = {
+  hosts: {
+    domain: 'beta.meet.jit.si',
+    muc: 'conference.beta.meet.jit.si' // FIXME: use XEP-0030
+  },
+  bosh: 'https://beta.meet.jit.si/http-bind', // FIXME: use xep-0156 for that
 
   // The name of client node advertised in XEP-0115 'c' stanza
   clientNode: 'http://jitsi.org/jitsimeet'
@@ -43,9 +57,6 @@ const initOptions = {
   // Whether desktop sharing should be disabled on Firefox.
   // desktopSharingFirefoxDisabled: true
 };
-
-JitsiMeetJS.init(initOptions);
-JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR);
 
 let connection = null;
 let isJoined = false;
@@ -79,9 +90,9 @@ function onLocalTracks(tracks) {
       $('body').append(`
         <div>
           <div>
-            local video ${role}
+            <b style="font-size: 100px;">I'm ${role}<b>
           </div>
-          <video style="width: 100px;" autoplay='1' id='localVideo${i}' />
+          <video style="width: 600px;" autoplay='1' id='localVideo${i}' />
         </div>
       `);
       localTracks[i].attach($(`#localVideo${i}`)[0]);
@@ -106,7 +117,8 @@ function onRemoteTrack(track) {
   }
   const participant = track.getParticipantId();
   const displayName = room.getParticipantById(participant).getDisplayName();
-  if (displayName !== 'presenter') {
+  if (displayName &&
+      displayName !== 'presenter') {
     return;
   }
 
@@ -137,7 +149,7 @@ function onRemoteTrack(track) {
     const width = displayName === 'presenter' ? 300 : 100;
     const videoDiv = `
       <div class='${participant}'>
-        <div>
+        <div style="font-size: 100px;">
           Remote video from ${displayName}
         </div>
         <video style="width: ${width}px;" autoplay='1' id='${divId}' />
@@ -186,8 +198,8 @@ function onUserLeft(id) {
 /**
  * That function is called when connection is established successfully
  */
-function onConnectionSuccess() {
-  room = connection.initJitsiConference('conference', confOptions);
+const onConnectionSuccess = async () => {
+  room = connection.initJitsiConference(conferenceId, confOptions);
   room.setDisplayName(role);
   room.on(JitsiMeetJS.events.conference.TRACK_ADDED, onRemoteTrack);
   room.on(JitsiMeetJS.events.conference.TRACK_REMOVED, track => {
@@ -215,7 +227,11 @@ function onConnectionSuccess() {
   room.on(
     JitsiMeetJS.events.conference.PHONE_NUMBER_CHANGED,
     () => console.log(`${room.getPhoneNumber()} - ${room.getPhonePin()}`));
-  room.join();
+  room.join(conferencePassword);
+  await wait(2);
+  if (role === 'presenter') {
+    room.lock(conferencePassword);
+  }
 }
 
 /**
@@ -313,7 +329,7 @@ function changeAudioOutput(selected) { // eslint-disable-line no-unused-vars
 const startAsPresenter = async () => {
   console.log('Start as presenter');
   role = 'presenter';
-  unload();
+  // unload();
   await wait(1);
   main();
 }
@@ -321,7 +337,7 @@ const startAsPresenter = async () => {
 const startAsUser = async () => {
   console.log('Start as user');
   role = 'user';
-  unload();
+  // unload();
   await wait(1);
   main();
 }
@@ -331,7 +347,12 @@ const main = async () => {
   $(window).bind('beforeunload', unload);
   $(window).bind('unload', unload);
 
-  connection = new JitsiMeetJS.JitsiConnection(null, null, options);
+  JitsiMeetJS.init(initOptions);
+  JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR);
+
+  await wait(1);
+
+  connection = new JitsiMeetJS.JitsiConnection(null, null, optionsLocal);
 
   connection.addEventListener(
     JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
@@ -349,7 +370,10 @@ const main = async () => {
 
   connection.connect();
 
+  $('#login').remove();
+
   if (role !== 'presenter') {
+    $('#controls').remove();
     return;
   }
 

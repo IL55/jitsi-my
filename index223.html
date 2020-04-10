@@ -13,23 +13,27 @@
 </head>
 
 <body>
-    <div>
-      Start as presenter or audience user
+    <div id="login">
+      <div>
+        Start as presenter or audience user
+      </div>
+      <div>
+        <button onclick="startAsPresenter()">Start as presenter</button>
+      </div>
+      <div>
+        <button onclick="startAsUser()">Start as user</button>
+      </div>
     </div>
-    <div>
-      <button onclick="startAsPresenter()">Start as presenter</button>
-    </div>
-    <div>
-      <button onclick="startAsUser()">Start as user</button>
-    </div>
-    <a href="#" onclick="unload()">Unload</a>
-    <a href="#" onclick="switchVideo()">switchVideo</a>
-    <div id="audioOutputSelectWrapper" style="display: none;">
+    <button onclick="unload()">Quit conference</button>
+    <div id="controls">
+      <a href="#" onclick="switchVideo()">switchVideo</a>
+      <div id="audioOutputSelectWrapper" style="display: none;">
         Change audio output device
         <select id="audioOutputSelect" onchange="changeAudioOutput(this)"></select>
+      </div>
+      <!-- <video id="localVideo" autoplay="true"></video> -->
+      <!--<audio id="localAudio" autoplay="true" muted="true"></audio>-->
     </div>
-    <!-- <video id="localVideo" autoplay="true"></video> -->
-    <!--<audio id="localAudio" autoplay="true" muted="true"></audio>-->
 </body>
 
 </html>
